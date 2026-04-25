@@ -1,9 +1,10 @@
 #include<SDL3/SDL.h>
 #include<SDL3/SDL_main.h>
+#include<windows.h>
 
-#define CELL_SIZE 40U
+#define CELL_SIZE 64U
 
-#define START_POINT -29700
+#define START_POINT 0
 //  -29700<p<230000
 typedef struct{
     SDL_Window* window;
@@ -15,6 +16,39 @@ typedef struct{
     int h;
     unsigned int* ptr;
 } Grid;
+
+BOOL CALLBACK 藏侄流程(HWND hwnd,LPARAM lparam){
+    HWND brother = FindWindowEx(hwnd,0,"SHELLDLL_DefView",0);
+    if ( brother != 0){
+        HWND nephew=FindWindowEx(0,hwnd,"WorkerW",0);
+        ShowWindow(nephew,SW_HIDE);
+        return FALSE;
+    }
+    return TRUE;
+}
+
+void 认爹流程(HWND window){
+    HWND desktop=FindWindow("Progman", NULL);
+
+    SendMessage(desktop,0x52C,0,0);
+
+    HWND hwnd = FindWindowEx(NULL, NULL, "WorkerW", NULL);
+
+    /* 快速鉴定：检查有没有侄子
+    if (FindWindowEx(hwnd, NULL, NULL, NULL)) {
+        // 如果这个有侄子 → 可能是图标管家
+        // 找下一个
+       hwnd = FindWindowEx(NULL, hwnd, "WorkerW", NULL); 
+    } */
+
+    EnumWindows(藏侄流程,0);
+
+    //if (hwnd) ShowWindow(hwnd, SW_HIDE);
+
+    SetParent(window, desktop); //正式认爹
+
+    //SetWindowPos(window,HWND_BOTTOM,0,0,0,0,SWP_NOSIZE); //蹲在最底层
+}
 
 void PaintGrid(AppState appstate,Grid grid){
     for (size_t y = 0; y < grid.h; y++)
@@ -50,7 +84,7 @@ int main(int argc,char *argv[])
 
     //放置基准指针
     int* a = SDL_malloc(128*sizeof(int));
-    memset(a,0,sizeof(a));
+    memset(a,0,128*sizeof(int));
 
     //获取屏幕分辨率并赋值
     SDL_DisplayID display_id = SDL_GetPrimaryDisplay();
@@ -74,13 +108,18 @@ int main(int argc,char *argv[])
         return SDL_APP_FAILURE;
     }
 
-    //开始绘制
+    //作为桌面
+    SDL_PropertiesID props=SDL_GetWindowProperties(appstate.window);
+    HWND hwnd = SDL_GetPointerProperty(props, SDL_PROP_WINDOW_WIN32_HWND_POINTER, NULL);
+    认爹流程(hwnd);
 
-
-    //SDL_SetRenderDrawColor(appstate.renderer,0,255,0,SDL_ALPHA_OPAQUE);
-    //SDL_RenderFillRect(appstate.renderer,&(SDL_FRect){100,100,400,300});
-    //SDL_RenderPresent(appstate.renderer);
-    
+    //循环变量
+    int small_loop = 0;
+    int mid_loop = 0;
+    int big_loop = 0;
+    int count = 0;
+    //通知一声
+    SDL_Log("Program Started");
     while ( 1 ) {
         while (SDL_PollEvent(&operation_event))
         {
@@ -90,10 +129,14 @@ int main(int argc,char *argv[])
                 break;
             }
         }
+        //开始绘制
         PaintGrid(appstate,grid);
         SDL_RenderPresent(appstate.renderer);
         SDL_Delay(100);
         grid.ptr++;
+        count++;
+        if (count > 200) {count = 0; grid.ptr+=200; small_loop++;}
+        if (small_loop > 5) {small_loop = 0; grid.ptr+=2000;}
         if (grid.ptr > a+(START_POINT)+259700) grid.ptr = a+(START_POINT);
     }
 
